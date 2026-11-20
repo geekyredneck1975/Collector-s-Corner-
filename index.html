@@ -79,6 +79,8 @@
 
       <label>UPC barcode</label>
       <input id="upc" placeholder="Enter UPC">
+      <button type="button" id="lookupBtn">🔎 Look up product</button>
+<p id="lookupStatus" role="status"></p>
 
       <label>Condition</label>
       <select id="condition">
@@ -303,6 +305,69 @@
   });
 })();
 </script>
+  
+<script>
+(() => {
+  const button = document.getElementById("lookupBtn");
+  const status = document.getElementById("lookupStatus");
+  const upcField = document.getElementById("upc");
+  const nameField = document.getElementById("name");
+
+  if (!button || !status || !upcField || !nameField) return;
+
+  button.addEventListener("click", async () => {
+    const upc = upcField.value.trim();
+
+    if (!/^\d{8,14}$/.test(upc)) {
+      status.textContent = "Enter or scan a valid barcode first.";
+      return;
+    }
+
+    button.disabled = true;
+    status.textContent = "Searching for product...";
+
+    try {
+      const url = "https://api.upcitemdb.com/prod/trial/lookup?upc="
+        + encodeURIComponent(upc);
+
+      const response = await fetch(url, {
+        headers: { "Accept": "application/json" }
+      });
+
+      if (response.status === 429) {
+        throw new Error("Free lookup limit reached. Try later.");
+      }
+
+      if (response.status === 404) {
+        status.textContent = "Product not found. Enter the name manually.";
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("Lookup service returned " + response.status);
+      }
+
+      const data = await response.json();
+      const product = data.items && data.items[0];
+
+      if (!product || !product.title) {
+        status.textContent = "No product information found.";
+        return;
+      }
+
+      nameField.value = product.title;
+      status.textContent = "Found: " + product.title
+        + (product.brand ? " | Brand: " + product.brand : "");
+
+    } catch (error) {
+      status.textContent = "Lookup failed: " + error.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+})();
+</script>
+  
   
 </body>
 </html>

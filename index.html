@@ -238,5 +238,71 @@
 
     render();
   </script>
+<!-- Collector's Corner camera barcode scanner add-on.
+     Insert just before </body> in index.html.
+     Requires an existing input with id="upc". -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<button type="button" id="scanBarcodeBtn">📷 Scan barcode</button>
+<div id="barcodeScanner" style="display:none;max-width:400px;margin:15px auto"></div>
+<p id="scanStatus" role="status"></p>
+<script>
+(() => {
+  const button = document.getElementById('scanBarcodeBtn');
+  const area = document.getElementById('barcodeScanner');
+  const status = document.getElementById('scanStatus');
+  const upc = document.getElementById('upc');
+  let scanner = null;
+  let busy = false;
+
+  async function closeScanner() {
+    if (!scanner) return;
+    const old = scanner;
+    scanner = null;
+    try { await old.stop(); } catch (_) {}
+    try { old.clear(); } catch (_) {}
+    area.style.display = 'none';
+    button.textContent = '📷 Scan barcode';
+  }
+
+  button.addEventListener('click', async () => {
+    if (busy) return;
+    busy = true;
+    button.disabled = true;
+    try {
+      if (scanner) {
+        await closeScanner();
+        status.textContent = 'Camera stopped.';
+        return;
+      }
+      if (!upc) throw new Error('UPC field was not found.');
+      if (typeof Html5Qrcode === 'undefined') throw new Error('Scanner library did not load.');
+      area.style.display = 'block';
+      status.textContent = 'Starting camera. Allow camera access if prompted.';
+      scanner = new Html5Qrcode('barcodeScanner');
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        async decodedText => {
+          if (!scanner) return;
+          upc.value = decodedText;
+          upc.dispatchEvent(new Event('input', { bubbles: true }));
+          status.textContent = 'Barcode scanned: ' + decodedText;
+          await closeScanner();
+        },
+        () => {}
+      );
+      button.textContent = 'Stop camera';
+      status.textContent = 'Point the camera at the barcode.';
+    } catch (err) {
+      status.textContent = 'Camera error: ' + (err.message || String(err));
+      await closeScanner();
+    } finally {
+      busy = false;
+      button.disabled = false;
+    }
+  });
+})();
+</script>
+  
 </body>
 </html>

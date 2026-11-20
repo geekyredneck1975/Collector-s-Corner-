@@ -1,0 +1,242 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Collector's Corner</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #101827;
+      color: white;
+      padding: 18px;
+    }
+    header {
+      background: #1d2b40;
+      padding: 22px;
+      border-radius: 14px;
+      text-align: center;
+    }
+    h1 { color: #65ddbd; margin: 0 0 8px; }
+    .panel {
+      background: #1d2b40;
+      padding: 20px;
+      border-radius: 14px;
+      margin-top: 18px;
+    }
+    input, select {
+      display: block;
+      width: 100%;
+      padding: 13px;
+      margin: 8px 0 15px;
+      background: #0e1726;
+      color: white;
+      border: 1px solid #53637a;
+      border-radius: 8px;
+    }
+    button {
+      background: #65ddbd;
+      border: none;
+      border-radius: 8px;
+      padding: 13px 18px;
+      font-weight: bold;
+      margin: 5px 5px 5px 0;
+    }
+    .item {
+      border-top: 1px solid #53637a;
+      padding: 15px 0;
+    }
+    .muted { color: #bac7d8; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Collector's Corner</h1>
+    <p>Track your collectibles in one place</p>
+    <p id="count">0 collectibles</p>
+    <h2 id="total">$0.00</h2>
+    <span class="muted">Estimated collection value</span>
+  </header>
+
+  <section class="panel">
+    <h2>Add a collectible</h2>
+    <form id="form">
+      <label>Item name</label>
+      <input id="name" required placeholder="Example: Optimus Prime">
+
+      <label>Category</label>
+      <select id="category">
+        <option>Transformers</option>
+        <option>GI Joe</option>
+        <option>Action Figures</option>
+        <option>Comics</option>
+        <option>Funko</option>
+        <option>Other</option>
+      </select>
+
+      <label>UPC barcode</label>
+      <input id="upc" placeholder="Enter UPC">
+
+      <label>Condition</label>
+      <select id="condition">
+        <option>Sealed</option>
+        <option>Opened</option>
+        <option>Loose</option>
+      </select>
+
+      <label>Quantity</label>
+      <input id="quantity" type="number" min="1" value="1">
+
+      <label>Original retail price ($)</label>
+      <input id="retail" type="number" min="0" step="0.01"
+             placeholder="Optional">
+
+      <label>Estimated current value ($)</label>
+      <input id="value" type="number" min="0" step="0.01"
+             value="0">
+
+      <label>Photo</label>
+      <input id="photo" type="file" accept="image/*">
+
+      <button type="submit">Save collectible</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>My collection</h2>
+    <button type="button" onclick="backup()">Backup JSON</button>
+    <div id="items"></div>
+  </section>
+
+  <script>
+    const KEY = "collectors-corner-v2";
+    let items = [];
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) || "[]");
+      if (Array.isArray(saved)) items = saved;
+    } catch (error) {
+      alert("Saved data could not be loaded.");
+    }
+
+    const money = n => "$" + Number(n || 0).toFixed(2);
+
+    function save() {
+      localStorage.setItem(KEY, JSON.stringify(items));
+    }
+
+    function render() {
+      document.getElementById("count").textContent =
+        items.length + " collectibles";
+
+      const total = items.reduce(
+        (sum, item) => sum + Number(item.value || 0) *
+          Number(item.quantity || 1), 0
+      );
+
+      document.getElementById("total").textContent = money(total);
+
+      const container = document.getElementById("items");
+      container.replaceChildren();
+
+      items.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "item";
+
+        const heading = document.createElement("h3");
+        heading.textContent = item.name;
+        card.appendChild(heading);
+
+        const details = document.createElement("p");
+        details.textContent =
+          item.category + " | " + item.condition +
+          " | Qty " + item.quantity;
+        card.appendChild(details);
+
+        const price = document.createElement("p");
+        price.textContent =
+          "Retail: " +
+          (item.retail === "" ? "Not available" : money(item.retail)) +
+          " | Value: " + money(item.value);
+        card.appendChild(price);
+
+        if (item.photo) {
+          const image = document.createElement("img");
+          image.src = item.photo;
+          image.alt = item.name;
+          image.style.maxWidth = "130px";
+          image.style.borderRadius = "8px";
+          card.appendChild(image);
+        }
+
+        container.appendChild(card);
+      });
+    }
+
+    document.getElementById("form").addEventListener(
+      "submit", async event => {
+        event.preventDefault();
+
+        if (items.length >= 500) {
+          alert("Basic plan limit: 500 collectibles.");
+          return;
+        }
+
+        const file = document.getElementById("photo").files[0];
+        let photo = "";
+
+        if (file) {
+          photo = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        }
+
+        const item = {
+          name: document.getElementById("name").value.trim(),
+          category: document.getElementById("category").value,
+          upc: document.getElementById("upc").value.trim(),
+          condition: document.getElementById("condition").value,
+          quantity: Number(document.getElementById("quantity").value),
+          retail: document.getElementById("retail").value,
+          value: Number(document.getElementById("value").value),
+          photo
+        };
+
+        items.push(item);
+
+        try {
+          save();
+        } catch (error) {
+          items.pop();
+          alert("Could not save. Try a smaller photo.");
+          return;
+        }
+
+        event.target.reset();
+        render();
+      }
+    );
+
+    function backup() {
+      const data = JSON.stringify(items, null, 2);
+      const blob = new Blob([data], {
+        type: "application/json"
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "collectors-corner-backup.json";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    render();
+  </script>
+</body>
+</html>
